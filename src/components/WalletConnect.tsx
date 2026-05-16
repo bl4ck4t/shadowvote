@@ -72,16 +72,18 @@ export function WalletConnect() {
       </button>
       {connectError && (
         <motion.p
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-[11px] font-mono text-red-400 mt-2 text-center leading-relaxed"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-[11px] font-mono text-red-400 mt-2 leading-relaxed max-w-[240px]"
         >
           {connectError}
         </motion.p>
       )}
       {!connectError && walletStatus === 'not-found' && (
-        <p className="text-[10px] font-mono text-zinc-600 mt-2 text-center">
-          Install 1AM wallet extension
+        <p className="text-[10px] font-mono text-zinc-600 mt-2">
+          Install{' '}
+          <a href="https://1am.xyz" target="_blank" rel="noopener noreferrer" className="text-purple-500 hover:text-purple-400 underline underline-offset-2">1AM wallet</a>
+          {' '}extension
         </p>
       )}
     </motion.div>

@@ -71,23 +71,53 @@ export function ProofPanel({ onProofComplete }: ProofPanelProps) {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="space-y-3 rounded-xl bg-white/[0.03] border border-white/5 p-4">
-              <div className="flex items-center gap-3">
-                <motion.span
-                  key={status.step}
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-purple-400 text-lg"
-                >
-                  {statusIcons[status.step] || '◇'}
-                </motion.span>
-                <span className={`text-sm ${
-                  status.step === 'success' ? 'text-emerald-400' :
-                  status.step === 'error' ? 'text-red-400' :
-                  'text-zinc-300'
-                }`}>
-                  {status.message}
-                </span>
+            <div className={`rounded-xl border p-4 ${
+              status.step === 'success'
+                ? 'border-emerald-500/30 bg-gradient-to-b from-emerald-500/10 to-transparent'
+                : status.step === 'error'
+                ? 'border-red-500/30 bg-gradient-to-b from-red-500/10 to-transparent'
+                : 'bg-white/[0.03] border border-white/5'
+            }`}>
+              <div className="flex items-start gap-3">
+                {status.step === 'error' ? (
+                  <div className="shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 8v4m0 4h.01" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                ) : status.step === 'success' ? (
+                  <div className="shrink-0 mt-0.5">
+                    <svg className="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                ) : (
+                  <motion.span
+                    key={status.step}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-purple-400 text-lg shrink-0 mt-0.5"
+                  >
+                    {statusIcons[status.step] || '◇'}
+                  </motion.span>
+                )}
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium ${
+                    status.step === 'success' ? 'text-emerald-300' :
+                    status.step === 'error' ? 'text-red-300' :
+                    'text-zinc-200'
+                  }`}>
+                    {status.step === 'error' ? 'Proof Failed' :
+                     status.step === 'success' ? 'Proof Verified' :
+                     status.message}
+                  </p>
+                  {(status.step === 'error' || status.step === 'success') && (
+                    <p className="text-[11px] font-mono text-zinc-500 mt-1 leading-relaxed">
+                      {status.message}
+                    </p>
+                  )}
+                </div>
               </div>
               {status.step !== 'success' && status.step !== 'error' && (
                 <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
