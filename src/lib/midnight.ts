@@ -198,24 +198,54 @@ export function detectWallet(): Promise<any | null> {
   })
 }
 
+export function getErrorMessage(e: unknown): string {
+  if (!(e instanceof Error)) return 'An unexpected error occurred. Please try again.'
+  const msg = e.message
+
+  if (msg.includes('1AM wallet not') || msg.includes('No wallet found') || msg.includes('extension not detected'))
+    return '1AM wallet not found. Install the 1AM extension from the Chrome Web Store, then refresh.'
+  if (msg.includes('Network mismatch'))
+    return 'Network mismatch. Switch your 1AM wallet to the correct network (preprod/preview) and try again.'
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed'))
+    return 'Could not reach the Midnight network. Check your internet connection and try again.'
+  if (msg.includes('balanceUnsealedTransaction') || msg.includes('submitTransaction'))
+    return 'Midnight network rejected the transaction. The network may be congested. Please try again.'
+  if (msg.includes('getConfiguration') || msg.includes('getUnshieldedAddress') || msg.includes('getShieldedAddresses'))
+    return 'Wallet connection lost. Please reconnect your 1AM wallet and try again.'
+  if (msg.includes('deserialize') || msg.includes('serialize'))
+    return 'Data format error from the Midnight network. Please try again.'
+  if (msg.includes('createProofProvider') || msg.includes('getProvingProvider') || msg.includes('prove'))
+    return 'Zero-knowledge proof system failed to initialize. Please try again.'
+  if (msg.includes('timeout') || msg.includes('timed out'))
+    return 'The request timed out. The network may be slow. Please try again.'
+  if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('cancelled'))
+    return 'Proof generation was cancelled.'
+
+  return `${msg}. Please try again.`
+}
+
 export async function generateProof(
   walletAddress: string,
   onStatus?: StatusCallback,
+  session?: ConnectedSession,
 ): Promise<Proof> {
   const report = (step: string, message: string, progress: number) => {
     onStatus?.({ step, message, progress })
   }
 
   try {
-    report('connecting', 'Connecting to Midnight network...', 10)
+    if (!session) {
+      report('connecting', 'Connecting to Midnight network...', 10)
 
-    const wallet = await detectWallet()
-    if (!wallet) throw new Error('1AM wallet not found')
+      const wallet = await detectWallet()
+      if (!wallet) throw new Error('1AM wallet not found')
 
-    const api = await wallet.connect('preprod')
-    report('signing', 'Signing commitment...', 30)
+      const api = await wallet.connect('preprod')
+      report('signing', 'Signing commitment...', 30)
 
-    const session = await createConnectedSession(api)
+      session = await createConnectedSession(api)
+    }
+
     report('generating', 'Generating zero-knowledge proof...', 60)
 
     const dummyProof: Proof = {
@@ -232,8 +262,7 @@ export async function generateProof(
     report('success', 'Private Verification Successful', 100)
     return dummyProof
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Proof generation failed'
-    throw new Error(msg)
+    throw new Error(getErrorMessage(e))
   }
 }
 

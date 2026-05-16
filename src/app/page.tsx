@@ -83,7 +83,7 @@ export default function Home() {
               className="text-center pb-8"
             >
               <p className="text-[10px] text-zinc-700 tracking-wider uppercase">
-                Solana handles identity. Midnight handles privacy.
+                Private verification powered by Midnight
               </p>
             </motion.footer>
           </motion.div>

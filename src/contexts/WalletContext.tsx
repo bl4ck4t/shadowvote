@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { createConnectedSession, detectWallet } from '@/lib/midnight'
+import { createConnectedSession, getErrorMessage } from '@/lib/midnight'
 import type { ConnectedSession } from '@/lib/midnight'
 
 export type WalletStatus = 'checking' | 'detected' | 'not-found'
@@ -10,10 +10,12 @@ type WalletContextType = {
   address: string | null
   isConnected: boolean
   isConnecting: boolean
+  connectError: string | null
   walletStatus: WalletStatus
   session: ConnectedSession | null
   connect: (network?: string) => Promise<ConnectedSession | undefined>
   disconnect: () => void
+  clearError: () => void
 }
 
 const WalletContext = createContext<WalletContextType | null>(null)
@@ -28,6 +30,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [address, setAddress] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectError, setConnectError] = useState<string | null>(null)
   const [walletStatus, setWalletStatus] = useState<WalletStatus>('checking')
   const [session, setSession] = useState<ConnectedSession | null>(null)
   const connectingRef = useRef(false)
@@ -46,14 +49,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (connectingRef.current) return
     connectingRef.current = true
     setIsConnecting(true)
+    setConnectError(null)
     try {
-      const api = await (window as any).midnight?.['1am']?.connect(network)
-      if (!api) throw new Error('No wallet found')
+      const wallet = (window as any).midnight?.['1am']
+      if (!wallet) throw new Error('1AM wallet extension not detected')
+
+      const api = await wallet.connect(network)
+      if (!api) throw new Error('Wallet connection returned no response')
+
       const sess = await createConnectedSession(api)
       setSession(sess)
       setAddress(sess.unshieldedAddress)
       setIsConnected(true)
       return sess
+    } catch (e) {
+      setConnectError(getErrorMessage(e))
     } finally {
       connectingRef.current = false
       setIsConnecting(false)
@@ -62,11 +72,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const disconnect = useCallback(() => {
     setAddress(null); setIsConnected(false); setSession(null)
-    setWalletStatus('checking')
+    setWalletStatus('checking'); setConnectError(null)
   }, [])
 
+  const clearError = useCallback(() => setConnectError(null), [])
+
   return (
-    <WalletContext.Provider value={{ address, isConnected, isConnecting, walletStatus, session, connect, disconnect }}>
+    <WalletContext.Provider value={{
+      address, isConnected, isConnecting, connectError, walletStatus,
+      session, connect, disconnect, clearError,
+    }}>
       {children}
     </WalletContext.Provider>
   )

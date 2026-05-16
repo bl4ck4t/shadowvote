@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useWallet } from '@solana/wallet-adapter-react'
+import { useWallet } from '@/contexts/WalletContext'
 import { generateProof } from '@/lib/midnight'
 import type { ProofStatus } from '@/lib/midnight'
 
@@ -19,17 +19,17 @@ const statusIcons: Record<string, string> = {
 }
 
 export function ProofPanel({ onProofComplete }: ProofPanelProps) {
-  const { publicKey } = useWallet()
+  const { isConnected, address, session } = useWallet()
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<ProofStatus | null>(null)
 
   const handleGenerate = async () => {
-    if (!publicKey) return
+    if (!address) return
     setLoading(true)
     setStatus(null)
 
     try {
-      const proof = await generateProof(publicKey.toBase58(), setStatus)
+      const proof = await generateProof(address, setStatus, session ?? undefined)
       onProofComplete(proof)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Proof generation failed'
@@ -43,9 +43,9 @@ export function ProofPanel({ onProofComplete }: ProofPanelProps) {
     <div className="space-y-6">
       <motion.button
         onClick={handleGenerate}
-        disabled={!publicKey || loading}
-        whileHover={publicKey && !loading ? { scale: 1.02 } : {}}
-        whileTap={publicKey && !loading ? { scale: 0.98 } : {}}
+        disabled={!isConnected || loading}
+        whileHover={isConnected && !loading ? { scale: 1.02 } : {}}
+        whileTap={isConnected && !loading ? { scale: 0.98 } : {}}
         className="relative w-full px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600/20 
                    to-blue-600/20 border border-purple-500/30 hover:border-purple-400/60 
                    transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed
