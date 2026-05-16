@@ -39,6 +39,9 @@ yarn-error.log*
 # agent skills
 .agents/
 
+# local context (never committed)
+AGENTS.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
