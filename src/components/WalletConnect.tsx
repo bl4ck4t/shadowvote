@@ -1,17 +1,19 @@
 'use client'
 
 import { useWallet } from '@solana/wallet-adapter-react'
+import type { WalletName } from '@solana/wallet-adapter-base'
 import { motion } from 'framer-motion'
-import { shortenAddress, getPhantomWallet } from '@/lib/solana'
+import { shortenAddress } from '@/lib/solana'
 
 export function WalletConnect() {
   const { select, connect, disconnect, publicKey, connecting } = useWallet()
 
   const handleConnect = async () => {
-    const { solana } = getPhantomWallet()
-    if (solana?.isPhantom) {
-      ;(select as any)('Phantom')
-      setTimeout(() => connect(), 100)
+    try {
+      select('Phantom' as WalletName)
+      await connect()
+    } catch {
+      console.error('Failed to connect to Phantom wallet')
     }
   }
 
