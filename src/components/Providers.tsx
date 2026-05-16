@@ -5,6 +5,7 @@ import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
 import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets'
 import { clusterApiUrl } from '@solana/web3.js'
+import { WalletProvider as MidnightWalletProvider } from '@/contexts/WalletContext'
 
 export const Providers: FC<{ children: ReactNode }> = ({ children }) => {
   const network = WalletAdapterNetwork.Mainnet
@@ -14,7 +15,9 @@ export const Providers: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
-        {children}
+        <MidnightWalletProvider>
+          {children}
+        </MidnightWalletProvider>
       </WalletProvider>
     </ConnectionProvider>
   )

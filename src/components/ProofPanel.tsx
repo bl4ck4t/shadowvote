@@ -31,8 +31,9 @@ export function ProofPanel({ onProofComplete }: ProofPanelProps) {
     try {
       const proof = await generateProof(publicKey.toBase58(), setStatus)
       onProofComplete(proof)
-    } catch {
-      setStatus({ step: 'error', message: 'Proof generation failed', progress: 0 })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Proof generation failed'
+      setStatus({ step: 'error', message: msg, progress: 0 })
     } finally {
       setLoading(false)
     }

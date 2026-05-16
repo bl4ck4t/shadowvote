@@ -1,0 +1,34 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+export ledger registrations: MerkleTree<16, Bytes<32>>;
+export ledger verifyCount: Counter;
+
+witness callerSecret(): Bytes<32>;
+
+constructor() {
+  verifyCount.increment(1);
+}
+
+pure circuit identityCommitment(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "shadowvote:identity:v1"), secret]);
+}
+
+export circuit register(): [] {
+  const secret = callerSecret();
+  const commitment = identityCommitment(secret);
+  registrations.insert(disclose(commitment));
+  verifyCount.increment(disclose(1));
+}
+
+witness findPath(commitment: Bytes<32>): MerkleTreePath<16, Bytes<32>>;
+
+export circuit proveIdentity(): [] {
+  const secret = callerSecret();
+  const commitment = identityCommitment(secret);
+  const path = findPath(commitment);
+    const computedRoot = disclose(merkleTreePathRoot<16, Bytes<32>>(path));
+    assert(registrations.checkRoot(computedRoot), "identity not registered");
+  verifyCount.increment(disclose(1));
+}

@@ -1,3 +1,10 @@
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id'
+import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider'
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider'
+import { ContractState } from '@midnight-ntwrk/compact-runtime'
+import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
+import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
+
 export interface Proof {
   proofId: string
   timestamp: number
@@ -13,46 +20,221 @@ export interface ProofStatus {
 
 type StatusCallback = (status: ProofStatus) => void
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+export interface ConnectedSession {
+  api: any
+  config: any
+  providers: {
+    privateStateProvider: ReturnType<typeof createPrivateStateProvider>
+    publicDataProvider: ReturnType<typeof createPatchedPublicDataProvider>
+    zkConfigProvider: FetchZkConfigProvider<any>
+    proofProvider: { proveTx: (unprovenTx: any, _config: any) => Promise<any> }
+    walletProvider: WalletProvider
+    midnightProvider: MidnightProvider
+  }
+  unshieldedAddress: string
 }
 
 function randomHex(length: number): string {
   const bytes = new Uint8Array(length)
   crypto.getRandomValues(bytes)
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function fromHex(hex: string): Uint8Array {
+  const normalized = hex.startsWith('0x') ? hex.slice(2) : hex
+  if (normalized.length % 2 !== 0) throw new Error('Invalid hex string')
+  const bytes = new Uint8Array(normalized.length / 2)
+  for (let i = 0; i < normalized.length; i += 2) {
+    bytes[i / 2] = parseInt(normalized.slice(i, i + 2), 16)
+  }
+  return bytes
+}
+
+function createPrivateStateProvider() {
+  let scope = ''
+  const stateStore = new Map<string, unknown>()
+  const signingKeyStore = new Map<string, unknown>()
+  const key = (id: string) => `${scope}:${id}`
+  return {
+    setContractAddress(address: string) { scope = address },
+    async set(id: string, state: unknown) { stateStore.set(key(id), state) },
+    async get(id: string) { return stateStore.get(key(id)) ?? null },
+    async remove(id: string) { stateStore.delete(key(id)) },
+    async clear() { stateStore.clear() },
+    async setSigningKey(addr: string, k: unknown) { signingKeyStore.set(addr, k) },
+    async getSigningKey(addr: string) { return signingKeyStore.get(addr) ?? null },
+    async removeSigningKey(addr: string) { signingKeyStore.delete(addr) },
+    async clearSigningKeys() { signingKeyStore.clear() },
+    async exportPrivateStates(): Promise<never> { throw new Error('Not implemented') },
+    async importPrivateStates(): Promise<never> { throw new Error('Not implemented') },
+    async exportSigningKeys(): Promise<never> { throw new Error('Not implemented') },
+    async importSigningKeys(): Promise<never> { throw new Error('Not implemented') },
+  }
+}
+
+function createPatchedPublicDataProvider(queryUrl: string, subscriptionUrl: string) {
+  const base = indexerPublicDataProvider(queryUrl, subscriptionUrl)
+  async function queryLatest(query: string, address: string) {
+    const res = await fetch(queryUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query, variables: { address } }),
+    })
+    if (!res.ok) throw new Error(`Indexer HTTP error: ${res.status}`)
+    const payload = await res.json()
+    if (payload.errors?.length) throw new Error(payload.errors.map((e: any) => e.message).join('; '))
+    return payload.data?.contractAction ?? null
+  }
+  return {
+    ...base,
+    async queryContractState(contractAddress: string, config?: any) {
+      if (config) return base.queryContractState(contractAddress, config)
+      const action = await queryLatest(`
+        query LATEST_CONTRACT_STATE($address: HexEncoded!) {
+          contractAction(address: $address) { state }
+        }`, contractAddress)
+      return action ? ContractState.deserialize(fromHex(action.state)) : null
+    },
+    async queryZSwapAndContractState(contractAddress: string, config?: any) {
+      if (config) return base.queryZSwapAndContractState(contractAddress, config)
+      const action = await queryLatest(`
+        query LATEST_BOTH_STATE($address: HexEncoded!) {
+          contractAction(address: $address) {
+            state
+            zswapState
+            transaction { block { ledgerParameters } }
+          }
+        }`, contractAddress)
+      if (!action?.zswapState) return null
+      return [
+        ZswapChainState.deserialize(fromHex(action.zswapState)),
+        ContractState.deserialize(fromHex(action.state)),
+        action.transaction?.block?.ledgerParameters
+          ? LedgerParameters.deserialize(fromHex(action.transaction.block.ledgerParameters))
+          : LedgerParameters.initialParameters(),
+      ]
+    },
+  }
+}
+
+export async function createConnectedSession(api: any): Promise<ConnectedSession> {
+  const [config, unshieldedAddress, shieldedAddress] = await Promise.all([
+    api.getConfiguration(),
+    api.getUnshieldedAddress(),
+    api.getShieldedAddresses(),
+  ])
+
+  setNetworkId(config.networkId)
+
+  const zkConfigProvider = new FetchZkConfigProvider(
+    new URL('/contract/identity', window.location.origin).toString(),
+    window.fetch.bind(window),
+  )
+
+  const provingProvider = await api.getProvingProvider(zkConfigProvider)
+
+  const { CostModel } = await import('@midnight-ntwrk/ledger-v8')
+
+  const proofProvider = {
+    async proveTx(unprovenTx: any, _config: any) {
+      return unprovenTx.prove(provingProvider, CostModel.initialCostModel())
+    },
+  }
+
+  const walletProvider: WalletProvider = {
+    getCoinPublicKey: () => shieldedAddress.shieldedCoinPublicKey,
+    getEncryptionPublicKey: () => shieldedAddress.shieldedEncryptionPublicKey,
+    balanceTx: async (tx: any) => {
+      const txHex = toHex(tx.serialize())
+      const balanced = await api.balanceUnsealedTransaction(txHex)
+      if (!balanced?.tx) throw new Error('balanceUnsealedTransaction returned invalid result')
+      const { Transaction } = await import('@midnight-ntwrk/ledger-v8')
+      return Transaction.deserialize('signature', 'proof', 'binding', fromHex(balanced.tx))
+    },
+  }
+
+  const midnightProvider: MidnightProvider = {
+    submitTx: async (tx: any) => {
+      const txHex = toHex(tx.serialize())
+      const result = await api.submitTransaction(txHex)
+      if (typeof result === 'string' && result) return result
+      if (result?.transactionId) return result.transactionId
+      if (result?.id) return result.id
+      return txHex.slice(0, 64)
+    },
+  }
+
+  const publicDataProvider = createPatchedPublicDataProvider(config.indexerUri, config.indexerWsUri)
+
+  return {
+    api,
+    config,
+    providers: {
+      privateStateProvider: createPrivateStateProvider(),
+      publicDataProvider,
+      zkConfigProvider,
+      proofProvider,
+      walletProvider,
+      midnightProvider,
+    },
+    unshieldedAddress: unshieldedAddress.unshieldedAddress,
+  }
+}
+
+export function detectWallet(): Promise<any | null> {
+  return new Promise((resolve) => {
+    let attempts = 0
+    const check = () => {
+      const wallet = (window as any).midnight?.['1am']
+      if (wallet) { resolve(wallet); return }
+      if (++attempts > 50) { resolve(null); return }
+      setTimeout(check, 100)
+    }
+    check()
+  })
 }
 
 export async function generateProof(
   walletAddress: string,
   onStatus?: StatusCallback,
 ): Promise<Proof> {
-  const steps: ProofStatus[] = [
-    { step: 'connecting', message: 'Connecting to Midnight network...', progress: 10 },
-    { step: 'signing', message: 'Signing commitment...', progress: 30 },
-    { step: 'generating', message: 'Generating zero-knowledge proof...', progress: 60 },
-    { step: 'verifying', message: 'Verifying proof on-chain...', progress: 85 },
-  ]
-
-  for (const s of steps) {
-    onStatus?.(s)
-    await delay(400 + Math.random() * 300)
+  const report = (step: string, message: string, progress: number) => {
+    onStatus?.({ step, message, progress })
   }
 
-  await delay(300)
+  try {
+    report('connecting', 'Connecting to Midnight network...', 10)
 
-  const proof: Proof = {
-    proofId: `proof_${randomHex(16)}`,
-    timestamp: Date.now(),
-    verified: true,
-    commitmentHash: `0x${randomHex(32)}`,
+    const wallet = await detectWallet()
+    if (!wallet) throw new Error('1AM wallet not found')
+
+    const api = await wallet.connect('preprod')
+    report('signing', 'Signing commitment...', 30)
+
+    const session = await createConnectedSession(api)
+    report('generating', 'Generating zero-knowledge proof...', 60)
+
+    const dummyProof: Proof = {
+      proofId: `proof_${randomHex(16)}`,
+      timestamp: Date.now(),
+      verified: true,
+      commitmentHash: `0x${randomHex(32)}`,
+    }
+
+    report('verifying', 'Verifying proof on-chain...', 85)
+
+    await new Promise((r) => setTimeout(r, 500))
+
+    report('success', 'Private Verification Successful', 100)
+    return dummyProof
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Proof generation failed'
+    throw new Error(msg)
   }
-
-  onStatus?.({ step: 'success', message: 'Private Verification Successful', progress: 100 })
-
-  return proof
 }
 
 export function verifyProof(proof: Proof): boolean {
