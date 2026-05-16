@@ -50,6 +50,10 @@ npm run sync:zk      # copies ZK assets to public/
 - 1AM wallet extension for browser
 - Compact CLI installed at `~/.local/bin/compact`, compiler at `~/.compact/versions/0.31.0/`
 
+## Rules
+- Never push to remote without explicit user permission
+- Always update CHANGELOG.md and AGENTS.md before every commit
+
 ## Known Limitations
 - ZK proving is still mocked (`generateProof` returns a dummy proof, doesn't call the actual contract circuits yet)
 - Network hardcoded to `preprod`
