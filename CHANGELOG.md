@@ -57,3 +57,7 @@
 
 ### Removed
 - `@solana/wallet-adapter-react`, `@solana/wallet-adapter-react-ui`, `@solana/wallet-adapter-wallets`, `@solana/web3.js` dependencies (909 packages)
+
+### Fixed
+- Network mismatch error: `generateProof()` reuses existing session instead of calling `wallet.connect()` again
+- WalletConnect error display: clean inline text with auto-dismiss, no layout shift
