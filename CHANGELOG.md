@@ -34,3 +34,26 @@
 - `src/components/Providers.tsx`: wraps app with both Solana and Midnight wallet providers
 - `src/components/ProofPanel.tsx`: improved error handling showing actual error messages
 - `package.json`: pinned Midnight SDK versions to exact numbers
+
+## 0.3.0 (2026-05-16)
+
+- Dropped Solana/Phantom entirely, migrated to 1AM-only wallet
+- Comprehensive error handling with user-friendly messages on UI
+
+### Added
+- `getErrorMessage()` in `src/lib/midnight.ts`: maps errors to actionable messages (network mismatch, wallet not found, timeouts, user rejection, etc.)
+- `connectError` state in `WalletContext.tsx`: tracks connection errors and auto-clears
+- Error display in `WalletConnect.tsx`: red error text with 6s auto-dismiss
+- `CHANGELOG.md`
+
+### Changed
+- `src/components/Providers.tsx`: simplified to only `WalletProvider` (removed Solana providers)
+- `src/components/WalletConnect.tsx`: rewritten for 1AM wallet with four states (checking, connected, disconnected, not-found + error)
+- `src/components/ProofPanel.tsx`: uses 1AM wallet context instead of Solana `useWallet()`, passes existing session to `generateProof()`
+- `src/lib/midnight.ts`: `generateProof()` accepts optional session param — skips redundant `wallet.connect()` when already connected, preventing network mismatch errors
+- `src/contexts/WalletContext.tsx`: `connect()` now catches and stores errors via `setConnectError()`
+- `src/lib/solana.ts`: removed `getPhantomWallet()`, kept only `shortenAddress()`
+- `src/app/page.tsx`: updated footer tagline
+
+### Removed
+- `@solana/wallet-adapter-react`, `@solana/wallet-adapter-react-ui`, `@solana/wallet-adapter-wallets`, `@solana/web3.js` dependencies (909 packages)
