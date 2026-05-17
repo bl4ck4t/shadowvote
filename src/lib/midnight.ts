@@ -439,12 +439,40 @@ export async function generateProof(
         contractAddress: contractAddressResult,
         circuitId: 'register' as any,
       })
-      report('registering', 'Transaction submitted, waiting for indexer...', 70)
       await submitTxAsync(providers as any, {
         unprovenTx: registerTxData.private.unprovenTx,
         circuitId: 'register' as any,
       })
-      report('verifying', 'Verifying proof on-chain...', 85)
+
+      // Now prove identity — retry until register tx is indexed
+      currentStep = 'proving'
+      report('proving', 'Generating zero-knowledge proof of identity...', 75)
+      let proveTxData: any
+      for (let i = 0; ; i++) {
+        try {
+          proveTxData = await createUnprovenCallTx(providers as any, {
+            compiledContract,
+            contractAddress: contractAddressResult,
+            circuitId: 'proveIdentity' as any,
+          })
+          break
+        } catch (e: any) {
+          if (e.message?.includes('identity not registered') && i < 29) {
+            report('proving', `Waiting for registration to be indexed (${i + 1}s)...`, 75 + Math.min(i, 10))
+            await new Promise(r => setTimeout(r, 2_000))
+            continue
+          }
+          throw e
+        }
+      }
+
+      report('proving', 'Confirm the prove transaction in your 1AM wallet...', 88)
+      await submitTxAsync(providers as any, {
+        unprovenTx: proveTxData.private.unprovenTx,
+        circuitId: 'proveIdentity' as any,
+      })
+
+      report('verifying', 'Proof submitted, waiting for indexer...', 95)
     } else {
       contractAddressResult = contractAddress!
       currentStep = 'joining'
