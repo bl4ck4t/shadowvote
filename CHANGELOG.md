@@ -1,12 +1,21 @@
 # Changelog
 
+## 0.5.4 (2026-05-17)
+
+### Changed
+- First-time flow (deploy path) now calls `proveIdentity` after `register` with up to 60s retry loop waiting for register tx to be indexed, then calls proveIdentity — previously jumped to "success" after register without generating a proof
+- Proof confirmation now polls `ledger(new ChargedState(state.state)).verifyCount` for up to 20s after proveIdentity submit — previously checked only for state existence (always truthy post-deploy)
+- Removed diagnostic console.log/warn/error logging from `generateProof` and `queryVerifyCount` after confirming polling works
+
+### Fixed
+- `ledger()` from generated contract bindings expects `ChargedState`, not `ContractState` — `queryVerifyCount` now wraps raw state in `new ChargedState(state.state)` before passing to `ledger()`
+
 ## 0.5.3 (2026-05-17)
 
 ### Fixed
 - `proveIdentity` circuit crashed with "attempted to take root of non-rehashed bmt" WASM error during `partitionTranscripts` — removed `registrations.checkRoot()` call from circuit, membership is now verified by the `findPath` witness querying the actual Merkle tree via `registrations.findPathForLeaf`
 - Fingerprint only hashed `register.verifier`, so changes to `proveIdentity` circuit weren't detected, causing `verifyContractState` to reject stale contracts — fingerprint now combines SHA-256 hashes of all verifier keys
-- Added detailed error logging in `generateProof` catch block for easier debugging
-- Updated `AGENTS.md` contract architecture description to reflect the circuit flow change
+- Updated `AGENTS.md` contract architecture and deploy flow descriptions
 
 ## 0.5.2 (2026-05-17)
 
