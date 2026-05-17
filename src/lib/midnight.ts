@@ -472,7 +472,16 @@ export async function generateProof(
         circuitId: 'proveIdentity' as any,
       })
 
-      report('verifying', 'Proof submitted, waiting for indexer...', 95)
+      report('verifying', 'Waiting for network confirmation...', 92)
+      for (let i = 0; i < 15; i++) {
+        const confirmed = await providers.publicDataProvider.queryContractState(contractAddressResult)
+        if (confirmed) {
+          report('verifying', 'Proof confirmed on-chain', 98)
+          break
+        }
+        report('verifying', `Waiting for network confirmation (${i + 1}s)...`, 92 + Math.min(i, 6))
+        await new Promise(r => setTimeout(r, 2_000))
+      }
     } else {
       contractAddressResult = contractAddress!
       currentStep = 'joining'
@@ -498,7 +507,17 @@ export async function generateProof(
         unprovenTx: proveTxData.private.unprovenTx,
         circuitId: 'proveIdentity' as any,
       })
-      report('verifying', 'Verifying proof on-chain...', 85)
+
+      report('verifying', 'Waiting for network confirmation...', 88)
+      for (let i = 0; i < 15; i++) {
+        const confirmed = await providers.publicDataProvider.queryContractState(contractAddressResult)
+        if (confirmed) {
+          report('verifying', 'Proof confirmed on-chain', 95)
+          break
+        }
+        report('verifying', `Waiting for network confirmation (${i + 1}s)...`, 88 + Math.min(i, 7))
+        await new Promise(r => setTimeout(r, 2_000))
+      }
     }
 
     report('success', 'Private Verification Successful', 100)
