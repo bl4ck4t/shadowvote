@@ -80,6 +80,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try { await wallet.disconnect() } catch { /* ignore */ }
       }
       try { localStorage.removeItem('shadowvote:contract-address-preview') } catch { /* noop */ }
+      try { localStorage.removeItem('shadowvote:contract-fingerprint-preview') } catch { /* noop */ }
       session?.providers.privateStateProvider.clear()
       session?.providers.privateStateProvider.clearSigningKeys()
     }

@@ -28,6 +28,8 @@ DOMAIN_SEP_IDENTITY.set(new TextEncoder().encode('shadowvote:identity:v1'))
 // Domain separator for caller secret derivation
 const CALLER_SECRET_PREFIX = 'shadowvote:caller-secret:v1:'
 
+const CONTRACT_FINGERPRINT_KEY = 'shadowvote:contract-fingerprint-preview'
+
 export interface ProofStatus {
   step: string
   message: string
@@ -247,6 +249,26 @@ function storeContractAddress(address: string): void {
   try { localStorage.setItem('shadowvote:contract-address-preview', address) } catch { /* noop */ }
 }
 
+async function getContractFingerprint(): Promise<string> {
+  const res = await fetch('/contract/identity/zkir/register.bzkir')
+  if (!res.ok) throw new Error('Failed to fetch ZKIR for fingerprint')
+  const hash = await crypto.subtle.digest('SHA-256', await res.arrayBuffer())
+  return toHex(new Uint8Array(hash))
+}
+
+function getStoredContractFingerprint(): string | null {
+  if (typeof window === 'undefined') return null
+  try { return localStorage.getItem(CONTRACT_FINGERPRINT_KEY) } catch { return null }
+}
+
+function storeContractFingerprint(fp: string): void {
+  try { localStorage.setItem(CONTRACT_FINGERPRINT_KEY, fp) } catch { /* noop */ }
+}
+
+function clearStoredContractFingerprint(): void {
+  try { localStorage.removeItem(CONTRACT_FINGERPRINT_KEY) } catch { /* noop */ }
+}
+
 async function waitForContractIndexing(
   publicDataProvider: ReturnType<typeof createPatchedPublicDataProvider>,
   contractAddress: string,
@@ -357,9 +379,19 @@ export async function generateProof(
     const compiledContract = CompiledContract.withCompiledFileAssets(withWits, '/contract/identity')
 
     const contractAddress = getStoredContractAddress()
+    const currentFingerprint = await getContractFingerprint()
 
-    let contractAddressResult: string
-    if (!contractAddress) {
+    let contractAddressResult = ''
+    if (contractAddress && getStoredContractFingerprint() === currentFingerprint) {
+      contractAddressResult = contractAddress!
+    } else {
+      if (contractAddress) {
+        clearStoredContractFingerprint()
+        try { localStorage.removeItem('shadowvote:contract-address-preview') } catch { /* noop */ }
+      }
+    }
+
+    if (!contractAddressResult) {
       currentStep = 'deploying'
       report('deploying', 'Building deploy transaction...', 35)
 
@@ -370,6 +402,7 @@ export async function generateProof(
 
       contractAddressResult = deployTxData.public.contractAddress
       storeContractAddress(contractAddressResult)
+      storeContractFingerprint(currentFingerprint)
 
       await providers.privateStateProvider.setContractAddress(contractAddressResult)
       await providers.privateStateProvider.setSigningKey(contractAddressResult, deployTxData.private.signingKey)
@@ -407,13 +440,13 @@ export async function generateProof(
       })
       report('verifying', 'Verifying proof on-chain...', 85)
     } else {
-      contractAddressResult = contractAddress
+      contractAddressResult = contractAddress!
       currentStep = 'joining'
       report('joining', 'Joining deployed identity contract...', 40)
 
       await findDeployedContract(providers as any, {
         compiledContract,
-        contractAddress,
+        contractAddress: contractAddressResult,
         privateStateId: 'shadowvote-identity',
         initialPrivateState: {},
       })
@@ -423,7 +456,7 @@ export async function generateProof(
       report('generating', 'Confirm the transaction in your 1AM wallet...', 70)
       const proveTxData = await createUnprovenCallTx(providers as any, {
         compiledContract,
-        contractAddress,
+        contractAddress: contractAddressResult,
         circuitId: 'proveIdentity' as any,
       })
       report('generating', 'Transaction submitted, waiting for indexer...', 80)

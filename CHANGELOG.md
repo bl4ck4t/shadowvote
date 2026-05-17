@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 (2026-05-17)
+
+### Added
+- Contract fingerprint: SHA-256 hash of compiled ZKIR stored in localStorage alongside contract address
+- Auto-redeploy on recompile: if the compiled contract's fingerprint changes (e.g. after `npm run compile`), stale localStorage is cleared and a fresh contract is deployed
+
 ## 0.5.1 (2026-05-17)
 
 ### Added
