@@ -1,7 +1,7 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id'
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider'
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider'
-import { ContractState, persistentHash, CompactTypeBytes, CompactTypeVector, sampleSigningKey } from '@midnight-ntwrk/compact-runtime'
+import { ContractState, ChargedState, persistentHash, CompactTypeBytes, CompactTypeVector, sampleSigningKey } from '@midnight-ntwrk/compact-runtime'
 import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
 import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
 import { CompiledContract } from '@midnight-ntwrk/compact-js'
@@ -330,6 +330,8 @@ export function getErrorMessage(e: unknown, step?: string): string {
     return '1AM wallet is still syncing with the network. Please wait and try again.'
   if (msg.includes('timeout') || msg.includes('timed out'))
     return 'The request timed out. The network may be slow. Please try again.'
+  if (msg.includes('not confirmed'))
+    return 'The proof transaction was submitted but not yet confirmed on-chain after 20s. It should appear shortly.'
   if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('cancelled'))
     return 'Proof generation was cancelled.'
 
@@ -342,7 +344,12 @@ async function queryVerifyCount(
 ): Promise<bigint> {
   const state = await publicDataProvider.queryContractState(contractAddress)
   if (!state) return 0n
-  try { return ledger(state).verifyCount } catch { return 0n }
+  try {
+    const charged = new ChargedState(state.state)
+    return ledger(charged).verifyCount
+  } catch {
+    return 0n
+  }
 }
 
 export async function generateProof(
@@ -481,16 +488,15 @@ export async function generateProof(
         circuitId: 'proveIdentity' as any,
       })
 
-      report('verifying', 'Waiting for network confirmation...', 92)
+      report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 92)
       const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 2_000))
         const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
         if (count > preCount) {
           report('verifying', 'Proof confirmed on-chain', 98)
           break
         }
-        report('verifying', `Waiting for network confirmation (${i + 1}s)...`, 92 + Math.min(i, 6))
-        await new Promise(r => setTimeout(r, 2_000))
       }
     } else {
       contractAddressResult = contractAddress!
@@ -518,16 +524,15 @@ export async function generateProof(
         circuitId: 'proveIdentity' as any,
       })
 
-      report('verifying', 'Waiting for network confirmation...', 88)
+      report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 88)
       const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 2_000))
         const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
         if (count > preCount) {
           report('verifying', 'Proof confirmed on-chain', 95)
           break
         }
-        report('verifying', `Waiting for network confirmation (${i + 1}s)...`, 88 + Math.min(i, 7))
-        await new Promise(r => setTimeout(r, 2_000))
       }
     }
 
@@ -540,12 +545,6 @@ export async function generateProof(
       contractAddress: contractAddressResult,
     }
   } catch (e) {
-    const details = e instanceof Error ? `[${e.name}] ${e.message}` : String(e)
-    console.error('generateProof failed:', details, e instanceof Error ? e.stack : '')
-    // Also log the raw error object for full introspection
-    if (typeof e === 'object' && e !== null) {
-      try { console.error('Raw error keys:', Object.keys(e).join(', ')) } catch {}
-    }
     throw new Error(getErrorMessage(e, currentStep))
   }
 }
