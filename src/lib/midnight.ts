@@ -1,16 +1,32 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id'
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider'
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider'
-import { ContractState } from '@midnight-ntwrk/compact-runtime'
+import { ContractState, persistentHash, CompactTypeBytes, CompactTypeVector } from '@midnight-ntwrk/compact-runtime'
 import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
 import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
+import { CompiledContract } from '@midnight-ntwrk/compact-js'
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts'
+import { Contract as IdentityContract } from '../../contracts/managed/identity/contract/index.js'
 
 export interface Proof {
   proofId: string
   timestamp: number
   verified: boolean
   commitmentHash: string
+  txId?: string
+  contractAddress?: string
 }
+
+// Compact type descriptor: Vector<2, Bytes<32>> — used for identity commitment hash
+const bytes32Type = new CompactTypeBytes(32)
+const vec2Bytes32 = new CompactTypeVector(2, bytes32Type)
+
+// Domain separator for identity commitment: pad(32, "shadowvote:identity:v1")
+const DOMAIN_SEP_IDENTITY = new Uint8Array(32)
+DOMAIN_SEP_IDENTITY.set(new TextEncoder().encode('shadowvote:identity:v1'))
+
+// Domain separator for caller secret derivation
+const CALLER_SECRET_PREFIX = 'shadowvote:caller-secret:v1:'
 
 export interface ProofStatus {
   step: string
@@ -198,18 +214,53 @@ export function detectWallet(): Promise<any | null> {
   })
 }
 
-export function getErrorMessage(e: unknown): string {
+function computeCommitment(secret: Uint8Array): Uint8Array {
+  return persistentHash(vec2Bytes32, [DOMAIN_SEP_IDENTITY, secret])
+}
+
+async function deriveSecret(coinPublicKey: string): Promise<Uint8Array> {
+  const data = new TextEncoder().encode(`${CALLER_SECRET_PREFIX}${coinPublicKey}`)
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', data))
+}
+
+function getStoredContractAddress(): string | null {
+  if (typeof window === 'undefined') return null
+  try { return localStorage.getItem('shadowvote:contract-address') } catch { return null }
+}
+
+function storeContractAddress(address: string): void {
+  try { localStorage.setItem('shadowvote:contract-address', address) } catch { /* noop */ }
+}
+
+const STEP_LABELS: Record<string, string> = {
+  deploying: 'Deploying contract',
+  registering: 'Registering identity',
+  joining: 'Joining contract',
+  generating: 'Generating proof',
+  verifying: 'Verifying proof',
+}
+
+export function getErrorMessage(e: unknown, step?: string): string {
   if (!(e instanceof Error)) return 'An unexpected error occurred. Please try again.'
   const msg = e.message
+  const ctx = step ? ` during "${STEP_LABELS[step] || step}"` : ''
 
+  if (msg.includes('Operation failed') && msg.includes('Custom error'))
+    return `Midnight network rejected the transaction${ctx}. Error: ${msg.trim()}.`
   if (msg.includes('1AM wallet not') || msg.includes('No wallet found') || msg.includes('extension not detected'))
     return '1AM wallet not found. Install the 1AM extension from the Chrome Web Store, then refresh.'
   if (msg.includes('Network mismatch'))
     return 'Network mismatch. Switch your 1AM wallet to the correct network (preprod/preview) and try again.'
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed'))
     return 'Could not reach the Midnight network. Check your internet connection and try again.'
-  if (msg.includes('balanceUnsealedTransaction') || msg.includes('submitTransaction'))
-    return 'Midnight network rejected the transaction. The network may be congested. Please try again.'
+  if (msg.includes('Failed to clone intent'))
+    return 'Transaction signing failed. Please try again.'
+  if (msg.includes('identity not registered'))
+    return 'Your identity has not been registered yet. Register first, then generate a proof.'
+  if (msg.includes('isFull') || msg.includes('Merkle tree is full'))
+    return 'The identity registry is full. Contact the administrator.'
+  if (msg.includes('insufficient') || msg.includes('dust') || msg.includes('balance'))
+    return 'Insufficient DUST balance for transaction fees. Get DUST from the preprod faucet and try again.'
   if (msg.includes('getConfiguration') || msg.includes('getUnshieldedAddress') || msg.includes('getShieldedAddresses'))
     return 'Wallet connection lost. Please reconnect your 1AM wallet and try again.'
   if (msg.includes('deserialize') || msg.includes('serialize'))
@@ -221,7 +272,7 @@ export function getErrorMessage(e: unknown): string {
   if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('cancelled'))
     return 'Proof generation was cancelled.'
 
-  return `${msg}. Please try again.`
+  return `${msg}${ctx}. Please try again.`
 }
 
 export async function generateProof(
@@ -233,36 +284,103 @@ export async function generateProof(
     onStatus?.({ step, message, progress })
   }
 
+  let currentStep: string | undefined
+
   try {
     if (!session) {
       report('connecting', 'Connecting to Midnight network...', 10)
-
       const wallet = await detectWallet()
       if (!wallet) throw new Error('1AM wallet not found')
-
       const api = await wallet.connect('preprod')
-      report('signing', 'Signing commitment...', 30)
-
       session = await createConnectedSession(api)
     }
 
-    report('generating', 'Generating zero-knowledge proof...', 60)
+    const { providers } = session
+    const coinPublicKey = providers.walletProvider.getCoinPublicKey()
 
-    const dummyProof: Proof = {
-      proofId: `proof_${randomHex(16)}`,
-      timestamp: Date.now(),
-      verified: true,
-      commitmentHash: `0x${randomHex(32)}`,
+    report('preparing', 'Deriving identity secret...', 20)
+    const secret = await deriveSecret(coinPublicKey)
+    const commitment = computeCommitment(secret)
+    const commitmentHash = `0x${toHex(commitment)}`
+
+    report('preparing', 'Setting up zero-knowledge circuit...', 30)
+
+    const witnesses = {
+      callerSecret: (ctx: { privateState: unknown }) => {
+        return [ctx.privateState, secret]
+      },
+      findPath: (ctx: { privateState: unknown; ledger: { registrations: { findPathForLeaf: (c: Uint8Array) => any } } }, comm: Uint8Array) => {
+        const path = ctx.ledger.registrations.findPathForLeaf(comm)
+        if (!path) throw new Error('identity not registered')
+        return [ctx.privateState, path]
+      },
     }
 
-    report('verifying', 'Verifying proof on-chain...', 85)
+    // @ts-ignore
+    const base = CompiledContract.make('shadowvote-identity', IdentityContract)
+    // @ts-ignore
+    const withWits = CompiledContract.withWitnesses(base, witnesses)
+    // @ts-ignore
+    const compiledContract = CompiledContract.withCompiledFileAssets(withWits, '/contract/identity')
 
-    await new Promise((r) => setTimeout(r, 500))
+    const contractAddress = getStoredContractAddress()
+
+    let contract: any
+    if (!contractAddress) {
+      currentStep = 'deploying'
+      report('deploying', 'Deploying identity contract...', 40)
+      console.log('[deploy] Starting deployContract')
+
+      try {
+        contract = await deployContract(providers as any, {
+          compiledContract,
+          privateStateId: 'shadowvote-identity',
+          initialPrivateState: {},
+        })
+        console.log('[deploy] Deploy succeeded, address:', contract.deployTxData.public.contractAddress)
+      } catch (deployErr) {
+        const msg = deployErr instanceof Error ? deployErr.message : String(deployErr)
+        console.error('[deploy] Failed with:', msg)
+        const isDust = msg.includes('dust') || msg.includes('balance') || msg.includes('insufficient')
+        if (isDust) {
+          throw new Error('Insufficient DUST to deploy the contract. Get NIGHT from the preprod faucet at https://faucet.midnight.network, then wait for DUST to generate in your 1AM wallet.')
+        }
+        throw deployErr
+      }
+
+      storeContractAddress(contract.deployTxData.public.contractAddress)
+
+      currentStep = 'registering'
+      report('registering', 'Registering identity commitment on-chain...', 55)
+      await contract.callTx.register()
+      report('verifying', 'Verifying proof on-chain...', 85)
+    } else {
+      currentStep = 'joining'
+      report('joining', 'Joining deployed identity contract...', 40)
+
+      contract = await findDeployedContract(providers as any, {
+        compiledContract,
+        contractAddress,
+        privateStateId: 'shadowvote-identity',
+        initialPrivateState: {},
+      })
+
+      currentStep = 'generating'
+      report('generating', 'Generating zero-knowledge proof...', 60)
+      await contract.callTx.proveIdentity()
+      report('verifying', 'Verifying proof on-chain...', 85)
+    }
 
     report('success', 'Private Verification Successful', 100)
-    return dummyProof
+    return {
+      proofId: commitmentHash.slice(0, 18),
+      timestamp: Date.now(),
+      verified: true,
+      commitmentHash,
+      contractAddress: contract.deployTxData.public.contractAddress,
+    }
   } catch (e) {
-    throw new Error(getErrorMessage(e))
+    throw new Error(getErrorMessage(e, currentStep))
   }
 }
 

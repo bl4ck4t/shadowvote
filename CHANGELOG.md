@@ -35,6 +35,23 @@
 - `src/components/ProofPanel.tsx`: improved error handling showing actual error messages
 - `package.json`: pinned Midnight SDK versions to exact numbers
 
+## 0.4.0 (2026-05-17)
+
+- Real ZK circuit integration: `generateProof` deploys the identity contract and calls `register`/`proveIdentity` circuits instead of returning mock data
+
+### Added
+- `CompiledContract` setup with witness implementations (`callerSecret` produces deterministic 32-byte secret from wallet key, `findPath` queries ledger Merkle tree)
+- `deployContract`/`findDeployedContract` flow: first-time deploys and registers, subsequent calls find contract and call `proveIdentity`
+- Deterministic identity commitment computation using `persistentHash` matching contract circuit
+- Contract address persistence via localStorage
+- Step-aware error context in error messages showing which operation failed
+- DUST/insufficient balance error detection with faucet guidance
+
+### Changed
+- `src/lib/midnight.ts`: `generateProof()` rewritten to call real circuits, added helper functions (`deriveSecret`, `computeCommitment`, `getStoredContractAddress`, `storeContractAddress`)
+- `Proof` interface: added optional `txId` and `contractAddress` fields
+- Error mapping: added handlers for custom errors (code 196/171), `Failed to clone intent`, `identity not registered`, Merkle tree full
+
 ## 0.3.0 (2026-05-16)
 
 - Dropped Solana/Phantom entirely, migrated to 1AM-only wallet
