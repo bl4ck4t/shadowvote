@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 (2026-05-17)
+
+### Fixed
+- Wallet disconnect only cleared React state — now calls `api.disconnect()`, clears localStorage contract address, and resets wallet status to `'detected'` instead of `'checking'` so the Connect button reappears
+- Added `window.confirm('Disconnect wallet?')` before disconnecting
+
 ## 0.5.0 (2026-05-17)
 
 - Preview network (sponsored fees, no faucet/DUST needed)

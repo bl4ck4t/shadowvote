@@ -30,7 +30,7 @@ export function WalletConnect() {
           {address?.slice(0, 4)}...{address?.slice(-4)}
         </span>
         <button
-          onClick={disconnect}
+          onClick={() => { if (window.confirm('Disconnect wallet?')) disconnect() }}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           Disconnect

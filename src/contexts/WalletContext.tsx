@@ -71,9 +71,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const disconnect = useCallback(() => {
-    setAddress(null); setIsConnected(false); setSession(null)
-    setWalletStatus('checking'); setConnectError(null)
-  }, [])
+    const tryDisconnect = async () => {
+      const wallet = (window as any).midnight?.['1am']
+      if (session?.api && typeof session.api.disconnect === 'function') {
+        try { await session.api.disconnect() } catch { /* ignore */ }
+      }
+      if (wallet && typeof wallet.disconnect === 'function') {
+        try { await wallet.disconnect() } catch { /* ignore */ }
+      }
+      try { localStorage.removeItem('shadowvote:contract-address-preview') } catch { /* noop */ }
+      session?.providers.privateStateProvider.clear()
+      session?.providers.privateStateProvider.clearSigningKeys()
+    }
+    tryDisconnect()
+    setAddress(null); setIsConnected(false); setSession(null); setConnectError(null); setWalletStatus('detected')
+  }, [session])
 
   const clearError = useCallback(() => setConnectError(null), [])
 
