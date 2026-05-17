@@ -85,6 +85,17 @@ export function StatusCard({ proof, onProofUpdated }: StatusCardProps) {
           </div>
         </div>
 
+        {isPending && activeProof.explorerUrl && (
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            The indexer is taking longer than expected.{' '}
+            <a href={activeProof.explorerUrl} target="_blank" rel="noopener noreferrer"
+               className="text-amber-400 hover:text-amber-300 underline">
+              View transaction on block explorer
+            </a>{' '}
+            to check status directly.
+          </p>
+        )}
+
         <div className="space-y-2 text-xs font-mono">
           <div className="flex justify-between">
             <span className="text-zinc-500">Proof ID</span>

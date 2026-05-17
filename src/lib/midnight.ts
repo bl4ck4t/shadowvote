@@ -16,6 +16,11 @@ export interface Proof {
   txId?: string
   contractAddress?: string
   pending?: boolean
+  explorerUrl?: string
+}
+
+function getExplorerUrl(): string {
+  return 'https://explorer.1am.xyz/tx'
 }
 
 // Compact type descriptor: Vector<2, Bytes<32>> — used for identity commitment hash
@@ -195,10 +200,11 @@ export async function createConnectedSession(api: any): Promise<ConnectedSession
     submitTx: async (tx: any) => {
       const txHex = toHex(tx.serialize())
       const result = await api.submitTransaction(txHex)
-      if (typeof result === 'string' && result) return result
+      if (typeof result === 'string' && result) return result.replace(/^0x/, '').toLowerCase()
       if (result?.transactionId) return result.transactionId
+      if (result?.hash) return result.hash
       if (result?.id) return result.id
-      return txHex.slice(0, 64)
+      return tx.transactionHash()
     },
   }
 
@@ -518,6 +524,7 @@ export async function generateProof(
           verified: false,
           pending: true,
           txId: proofTxId,
+          explorerUrl: proofTxId ? `${getExplorerUrl()}/${proofTxId}` : undefined,
           commitmentHash,
           contractAddress: contractAddressResult,
         }
@@ -566,6 +573,7 @@ export async function generateProof(
           verified: false,
           pending: true,
           txId: proofTxId,
+          explorerUrl: proofTxId ? `${getExplorerUrl()}/${proofTxId}` : undefined,
           commitmentHash,
           contractAddress: contractAddressResult,
         }
@@ -578,6 +586,7 @@ export async function generateProof(
       timestamp: Date.now(),
       verified: true,
       txId: proofTxId,
+      explorerUrl: proofTxId ? `${getExplorerUrl()}/${proofTxId}` : undefined,
       commitmentHash,
       contractAddress: contractAddressResult,
     }

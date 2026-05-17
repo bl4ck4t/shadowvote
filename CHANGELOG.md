@@ -7,13 +7,17 @@
 - `checkProofStatus` export from `midnight.ts` for tx-specific confirmation checking
 - `checkProofStatus` on WalletContext — wraps session's `config.indexerUri` for component use
 - Auto-poll in StatusCard: when proof is `pending` with a `txId`, polls every 5s and auto-transitions to confirmed
+- Explorer link on pending StatusCard: shows block explorer URL with message that indexer is slow, letting users check status directly
 
 ### Changed
 - `submitTxAsync` return value (tx hash) is now captured and stored in `Proof.txId`
 - Confirmation polling uses `queryTransactionStatus` by tx hash instead of global `verifyCount` — eliminates false positives from other users' transactions
-- `Proof` interface gains `pending?: boolean` field
+- `Proof` interface gains `pending?: boolean` and `explorerUrl?: string` fields
 - Removed `ChargedState` and `ledger` imports (no longer needed without `queryVerifyCount`)
 - Removed `queryVerifyCount` function
+
+### Fixed
+- `submitTx` fallback `txHex.slice(0, 64)` always produced the same garbage hash (serialized tx starts with identical bytes) — now uses `tx.transactionHash()` from the `Transaction` object which returns a proper BLAKE2b-256 hex hash the indexer accepts
 
 ## 0.5.5 (2026-05-17)
 
