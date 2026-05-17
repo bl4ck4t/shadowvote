@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.7 (2026-05-17)
+
+### Added
+- `HACKANGELOG.md`: hackathon submission story (moved from README)
+
+### Changed
+- `README.md`: replaced hackathon story with proper technical README (architecture diagram, setup, project structure, transaction lifecycle, design decisions)
+
 ## 0.5.6 (2026-05-17)
 
 ### Added
