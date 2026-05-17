@@ -2,9 +2,14 @@
 
 ## 0.5.1 (2026-05-17)
 
+### Added
+- `ConfirmDialog` component: animated modal with backdrop blur, portal-rendered to document.body to avoid stacking context issues
+- Confirmation dialog before disconnecting wallet (replaces native `window.confirm`)
+
 ### Fixed
 - Wallet disconnect only cleared React state — now calls `api.disconnect()`, clears localStorage contract address, and resets wallet status to `'detected'` instead of `'checking'` so the Connect button reappears
-- Added `window.confirm('Disconnect wallet?')` before disconnecting
+- Disconnect dialog was trapped inside `<header>` stacking context, rendering behind `<main>` content — fixed by rendering dialog via `createPortal` to `document.body`
+- Disconnect dialog buttons were unresponsive when `isConnected` state changed — fixed by mounting dialog at component root level instead of inside a conditional block
 
 ## 0.5.0 (2026-05-17)
 
