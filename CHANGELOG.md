@@ -3,27 +3,24 @@
 ## 0.5.0 (2026-05-17)
 
 - Preview network (sponsored fees, no faucet/DUST needed)
-- All blocking `watchForTxData` calls replaced with low-level `createUnprovenDeployTx`/`createUnprovenCallTx` + `submitTxAsync` + polling
-- Real-time status updates for every step (including indexer wait with live counter)
+- All blocking `watchForTxData` calls replaced with low-level `createUnprovenDeployTx`/`createUnprovenCallTx` + `submitTxAsync`
+- Real-time status updates for every step (building tx, wallet confirmation, indexer wait)
 
 ### Added
-- `retryOnSync()` in `createConnectedSession`: retries wallet API calls up to 60s when wallet is syncing
+- `retryOnSync()`: retries `getUnshieldedAddress()` up to 60s when 1AM wallet is still syncing
 - `waitForContractIndexing()`: polls indexer for contract state with per-second progress callback
-- `waitForStateAdvance()`: polls until ledger `verifyCount` advances after circuit calls
-- `getVerifyCount()`: reads on-chain verification counter for state change detection
-- Error mapping for wallet sync errors with user-friendly message
-- `report()` status updates during every phase: building tx, wallet confirmation, indexer wait
+- Error mapping for wallet sync errors
+- Intermediate status updates during all phases (before proving, before signing, during indexer wait)
 
 ### Changed
-- Default network: `preprod` → `preview` across all connect calls (1AM ProofStation sponsors fees)
-- `deployContract` → `createUnprovenDeployTx` + `submitTxAsync`: no more silent 30-120s hang
-- `contract.callTx.register()` → `createUnprovenCallTx` + `submitTxAsync` + poll for state change
-- `contract.callTx.proveIdentity()` → `createUnprovenCallTx` + `submitTxAsync` + poll for state change
-- Error messages updated: DUST errors reference sponsored fees on preview/mainnet
-- localStorage key: `shadowvote:contract-address-preview` (network-prefixed to avoid cross-network collisions)
+- Default network: `preprod` → `preview` (1AM ProofStation sponsors fees, zero DUST/faucet needed)
+- `deployContract` → `createUnprovenDeployTx` + `submitTxAsync`: deploy no longer blocks on `watchForTxData`
+- `contract.callTx.*` → `findDeployedContract` (state init) + `createUnprovenCallTx` + `submitTxAsync`: circuit calls no longer block on `watchForTxData`
+- Error messages: DUST errors reference sponsored fees on preview/mainnet instead of preprod faucet
+- localStorage key: `shadowvote:contract-address-preview` (network-prefixed)
 
 ### Fixed
-- UI stuck on "Deploying identity contract" / "Registering identity" — no longer blocked by `watchForTxData`
+- UI freezing on "Deploying identity contract" / "Registering identity" — status now updates immediately after submission
 
 ## 0.1.0 (2026-05-16)
 
