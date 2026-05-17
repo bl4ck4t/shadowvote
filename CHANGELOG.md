@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5 (2026-05-17)
+
+### Fixed
+- `preCount` was captured after `submitTxAsync`, so a fast indexer could increment the count before the query, causing the poll loop to never detect a change and falsely time out — `preCount` is now read before submitting in both deploy and reuse paths
+
 ## 0.5.4 (2026-05-17)
 
 ### Changed

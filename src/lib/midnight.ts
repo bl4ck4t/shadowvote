@@ -482,6 +482,7 @@ export async function generateProof(
         }
       }
 
+      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       report('proving', 'Confirm the prove transaction in your 1AM wallet...', 88)
       await submitTxAsync(providers as any, {
         unprovenTx: proveTxData.private.unprovenTx,
@@ -489,7 +490,6 @@ export async function generateProof(
       })
 
       report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 92)
-      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 2_000))
         const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
@@ -518,6 +518,7 @@ export async function generateProof(
         contractAddress: contractAddressResult,
         circuitId: 'proveIdentity' as any,
       })
+      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       report('generating', 'Transaction submitted, waiting for indexer...', 80)
       await submitTxAsync(providers as any, {
         unprovenTx: proveTxData.private.unprovenTx,
@@ -525,7 +526,6 @@ export async function generateProof(
       })
 
       report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 88)
-      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 2_000))
         const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
