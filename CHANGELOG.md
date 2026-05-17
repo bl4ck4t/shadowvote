@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.5.0 (2026-05-17)
+
+- Preview network (sponsored fees, no faucet/DUST needed)
+- All blocking `watchForTxData` calls replaced with low-level `createUnprovenDeployTx`/`createUnprovenCallTx` + `submitTxAsync` + polling
+- Real-time status updates for every step (including indexer wait with live counter)
+
+### Added
+- `retryOnSync()` in `createConnectedSession`: retries wallet API calls up to 60s when wallet is syncing
+- `waitForContractIndexing()`: polls indexer for contract state with per-second progress callback
+- `waitForStateAdvance()`: polls until ledger `verifyCount` advances after circuit calls
+- `getVerifyCount()`: reads on-chain verification counter for state change detection
+- Error mapping for wallet sync errors with user-friendly message
+- `report()` status updates during every phase: building tx, wallet confirmation, indexer wait
+
+### Changed
+- Default network: `preprod` → `preview` across all connect calls (1AM ProofStation sponsors fees)
+- `deployContract` → `createUnprovenDeployTx` + `submitTxAsync`: no more silent 30-120s hang
+- `contract.callTx.register()` → `createUnprovenCallTx` + `submitTxAsync` + poll for state change
+- `contract.callTx.proveIdentity()` → `createUnprovenCallTx` + `submitTxAsync` + poll for state change
+- Error messages updated: DUST errors reference sponsored fees on preview/mainnet
+- localStorage key: `shadowvote:contract-address-preview` (network-prefixed to avoid cross-network collisions)
+
+### Fixed
+- UI stuck on "Deploying identity contract" / "Registering identity" — no longer blocked by `watchForTxData`
+
 ## 0.1.0 (2026-05-16)
 
 - Initial scaffold: Next.js 16 + Tailwind v4 + Solana (Phantom) wallet
@@ -34,6 +59,18 @@
 - `src/components/Providers.tsx`: wraps app with both Solana and Midnight wallet providers
 - `src/components/ProofPanel.tsx`: improved error handling showing actual error messages
 - `package.json`: pinned Midnight SDK versions to exact numbers
+
+## 0.5.0 (2026-05-17)
+
+- Switched default network from preprod to preview (sponsored fees, no faucet/DUST needed)
+
+### Added
+- `retryOnSync()` in `createConnectedSession`: retries `getUnshieldedAddress()` up to 60s when wallet is still syncing
+- Error mapping for wallet sync errors with user-friendly message
+
+### Changed
+- Default network: `preprod` → `preview` across `WalletContext`, `WalletConnect`, and `generateProof` fallback
+- Error messages updated: DUST errors now reference sponsored fees on preview/mainnet instead of preprod faucet
 
 ## 0.4.0 (2026-05-17)
 

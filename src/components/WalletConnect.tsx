@@ -46,7 +46,7 @@ export function WalletConnect() {
       transition={{ duration: 0.5 }}
     >
       <button
-        onClick={() => connect('preprod')}
+        onClick={() => connect('preview')}
         disabled={isConnecting}
         className="group relative px-6 py-3 rounded-xl bg-white/5 border border-white/10 
                    hover:bg-white/10 hover:border-purple-500/50 transition-all duration-300

@@ -1,11 +1,11 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id'
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider'
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider'
-import { ContractState, persistentHash, CompactTypeBytes, CompactTypeVector } from '@midnight-ntwrk/compact-runtime'
+import { ContractState, persistentHash, CompactTypeBytes, CompactTypeVector, sampleSigningKey } from '@midnight-ntwrk/compact-runtime'
 import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
 import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
 import { CompiledContract } from '@midnight-ntwrk/compact-js'
-import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts'
+import { createUnprovenDeployTx, createUnprovenCallTx, submitTxAsync, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts'
 import { Contract as IdentityContract } from '../../contracts/managed/identity/contract/index.js'
 
 export interface Proof {
@@ -137,10 +137,25 @@ function createPatchedPublicDataProvider(queryUrl: string, subscriptionUrl: stri
   }
 }
 
+async function retryOnSync<T>(fn: () => Promise<T>, maxRetries = 30, delayMs = 2000): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      if (e?.message?.includes('syncing') && i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, delayMs))
+        continue
+      }
+      throw e
+    }
+  }
+  throw new Error('Wallet sync timed out after multiple retries')
+}
+
 export async function createConnectedSession(api: any): Promise<ConnectedSession> {
   const [config, unshieldedAddress, shieldedAddress] = await Promise.all([
     api.getConfiguration(),
-    api.getUnshieldedAddress(),
+    retryOnSync<{ unshieldedAddress: string }>(() => api.getUnshieldedAddress()),
     api.getShieldedAddresses(),
   ])
 
@@ -225,11 +240,27 @@ async function deriveSecret(coinPublicKey: string): Promise<Uint8Array> {
 
 function getStoredContractAddress(): string | null {
   if (typeof window === 'undefined') return null
-  try { return localStorage.getItem('shadowvote:contract-address') } catch { return null }
+  try { return localStorage.getItem('shadowvote:contract-address-preview') } catch { return null }
 }
 
 function storeContractAddress(address: string): void {
-  try { localStorage.setItem('shadowvote:contract-address', address) } catch { /* noop */ }
+  try { localStorage.setItem('shadowvote:contract-address-preview', address) } catch { /* noop */ }
+}
+
+async function waitForContractIndexing(
+  publicDataProvider: ReturnType<typeof createPatchedPublicDataProvider>,
+  contractAddress: string,
+  onPoll?: (attempt: number) => void,
+  maxAttempts = 60,
+  pollIntervalMs = 2000,
+): Promise<void> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const state = await publicDataProvider.queryContractState(contractAddress)
+    if (state?.data) return
+    onPoll?.(i + 1)
+    await new Promise(r => setTimeout(r, pollIntervalMs))
+  }
+  throw new Error('Contract not indexed after timeout')
 }
 
 const STEP_LABELS: Record<string, string> = {
@@ -250,7 +281,7 @@ export function getErrorMessage(e: unknown, step?: string): string {
   if (msg.includes('1AM wallet not') || msg.includes('No wallet found') || msg.includes('extension not detected'))
     return '1AM wallet not found. Install the 1AM extension from the Chrome Web Store, then refresh.'
   if (msg.includes('Network mismatch'))
-    return 'Network mismatch. Switch your 1AM wallet to the correct network (preprod/preview) and try again.'
+    return 'Network mismatch. Switch your 1AM wallet to the correct network (preview/preprod) and try again.'
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed'))
     return 'Could not reach the Midnight network. Check your internet connection and try again.'
   if (msg.includes('Failed to clone intent'))
@@ -260,13 +291,15 @@ export function getErrorMessage(e: unknown, step?: string): string {
   if (msg.includes('isFull') || msg.includes('Merkle tree is full'))
     return 'The identity registry is full. Contact the administrator.'
   if (msg.includes('insufficient') || msg.includes('dust') || msg.includes('balance'))
-    return 'Insufficient DUST balance for transaction fees. Get DUST from the preprod faucet and try again.'
+    return 'Insufficient DUST balance for transaction fees. On preview/mainnet, DUST is sponsored by 1AM ProofStation. Switch your wallet to preview or mainnet.'
   if (msg.includes('getConfiguration') || msg.includes('getUnshieldedAddress') || msg.includes('getShieldedAddresses'))
     return 'Wallet connection lost. Please reconnect your 1AM wallet and try again.'
   if (msg.includes('deserialize') || msg.includes('serialize'))
     return 'Data format error from the Midnight network. Please try again.'
   if (msg.includes('createProofProvider') || msg.includes('getProvingProvider') || msg.includes('prove'))
     return 'Zero-knowledge proof system failed to initialize. Please try again.'
+  if (msg.includes('syncing'))
+    return '1AM wallet is still syncing with the network. Please wait and try again.'
   if (msg.includes('timeout') || msg.includes('timed out'))
     return 'The request timed out. The network may be slow. Please try again.'
   if (msg.includes('User rejected') || msg.includes('user rejected') || msg.includes('cancelled'))
@@ -291,7 +324,7 @@ export async function generateProof(
       report('connecting', 'Connecting to Midnight network...', 10)
       const wallet = await detectWallet()
       if (!wallet) throw new Error('1AM wallet not found')
-      const api = await wallet.connect('preprod')
+      const api = await wallet.connect('preview')
       session = await createConnectedSession(api)
     }
 
@@ -325,40 +358,60 @@ export async function generateProof(
 
     const contractAddress = getStoredContractAddress()
 
-    let contract: any
+    let contractAddressResult: string
     if (!contractAddress) {
       currentStep = 'deploying'
-      report('deploying', 'Deploying identity contract...', 40)
-      console.log('[deploy] Starting deployContract')
+      report('deploying', 'Building deploy transaction...', 35)
 
-      try {
-        contract = await deployContract(providers as any, {
-          compiledContract,
-          privateStateId: 'shadowvote-identity',
-          initialPrivateState: {},
-        })
-        console.log('[deploy] Deploy succeeded, address:', contract.deployTxData.public.contractAddress)
-      } catch (deployErr) {
-        const msg = deployErr instanceof Error ? deployErr.message : String(deployErr)
-        console.error('[deploy] Failed with:', msg)
-        const isDust = msg.includes('dust') || msg.includes('balance') || msg.includes('insufficient')
-        if (isDust) {
-          throw new Error('Insufficient DUST to deploy the contract. Get NIGHT from the preprod faucet at https://faucet.midnight.network, then wait for DUST to generate in your 1AM wallet.')
-        }
-        throw deployErr
-      }
+      const deployTxData = await createUnprovenDeployTx(
+        { zkConfigProvider: providers.zkConfigProvider, walletProvider: providers.walletProvider },
+        { compiledContract, signingKey: sampleSigningKey() },
+      )
 
-      storeContractAddress(contract.deployTxData.public.contractAddress)
+      contractAddressResult = deployTxData.public.contractAddress
+      storeContractAddress(contractAddressResult)
+
+      await providers.privateStateProvider.setContractAddress(contractAddressResult)
+      await providers.privateStateProvider.setSigningKey(contractAddressResult, deployTxData.private.signingKey)
+
+      report('deploying', 'Confirm the transaction in your 1AM wallet...', 45)
+      await submitTxAsync(providers as any, {
+        unprovenTx: deployTxData.private.unprovenTx,
+      })
+
+      report('deploying', 'Waiting for indexer to confirm deployment...', 50)
+      await waitForContractIndexing(providers.publicDataProvider, contractAddressResult, (attempt) => {
+        report('deploying', `Waiting for indexer to confirm deployment (${attempt}s)...`, 50 + Math.min(attempt, 30))
+      })
 
       currentStep = 'registering'
       report('registering', 'Registering identity commitment on-chain...', 55)
-      await contract.callTx.register()
+
+      await findDeployedContract(providers as any, {
+        compiledContract,
+        contractAddress: contractAddressResult,
+        privateStateId: 'shadowvote-identity',
+        initialPrivateState: {},
+      })
+
+      report('registering', 'Confirm the transaction in your 1AM wallet...', 65)
+      const registerTxData = await createUnprovenCallTx(providers as any, {
+        compiledContract,
+        contractAddress: contractAddressResult,
+        circuitId: 'register' as any,
+      })
+      report('registering', 'Transaction submitted, waiting for indexer...', 70)
+      await submitTxAsync(providers as any, {
+        unprovenTx: registerTxData.private.unprovenTx,
+        circuitId: 'register' as any,
+      })
       report('verifying', 'Verifying proof on-chain...', 85)
     } else {
+      contractAddressResult = contractAddress
       currentStep = 'joining'
       report('joining', 'Joining deployed identity contract...', 40)
 
-      contract = await findDeployedContract(providers as any, {
+      await findDeployedContract(providers as any, {
         compiledContract,
         contractAddress,
         privateStateId: 'shadowvote-identity',
@@ -367,7 +420,17 @@ export async function generateProof(
 
       currentStep = 'generating'
       report('generating', 'Generating zero-knowledge proof...', 60)
-      await contract.callTx.proveIdentity()
+      report('generating', 'Confirm the transaction in your 1AM wallet...', 70)
+      const proveTxData = await createUnprovenCallTx(providers as any, {
+        compiledContract,
+        contractAddress,
+        circuitId: 'proveIdentity' as any,
+      })
+      report('generating', 'Transaction submitted, waiting for indexer...', 80)
+      await submitTxAsync(providers as any, {
+        unprovenTx: proveTxData.private.unprovenTx,
+        circuitId: 'proveIdentity' as any,
+      })
       report('verifying', 'Verifying proof on-chain...', 85)
     }
 
@@ -377,7 +440,7 @@ export async function generateProof(
       timestamp: Date.now(),
       verified: true,
       commitmentHash,
-      contractAddress: contract.deployTxData.public.contractAddress,
+      contractAddress: contractAddressResult,
     }
   } catch (e) {
     throw new Error(getErrorMessage(e, currentStep))
