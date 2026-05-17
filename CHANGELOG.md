@@ -4,6 +4,8 @@
 
 ### Fixed
 - `proveIdentity` circuit crashed with "attempted to take root of non-rehashed bmt" WASM error during `partitionTranscripts` — removed `registrations.checkRoot()` call from circuit, membership is now verified by the `findPath` witness querying the actual Merkle tree via `registrations.findPathForLeaf`
+- Fingerprint only hashed `register.verifier`, so changes to `proveIdentity` circuit weren't detected, causing `verifyContractState` to reject stale contracts — fingerprint now combines SHA-256 hashes of all verifier keys
+- Added detailed error logging in `generateProof` catch block for easier debugging
 - Updated `AGENTS.md` contract architecture description to reflect the circuit flow change
 
 ## 0.5.2 (2026-05-17)

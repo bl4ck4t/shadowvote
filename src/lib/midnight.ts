@@ -250,10 +250,16 @@ function storeContractAddress(address: string): void {
 }
 
 async function getContractFingerprint(): Promise<string> {
-  const res = await fetch('/contract/identity/keys/register.verifier')
-  if (!res.ok) throw new Error('Failed to fetch verifier key for fingerprint')
-  const hash = await crypto.subtle.digest('SHA-256', await res.arrayBuffer())
-  return toHex(new Uint8Array(hash))
+  const [reg, prove] = await Promise.all([
+    fetch('/contract/identity/keys/register.verifier'),
+    fetch('/contract/identity/keys/proveIdentity.verifier'),
+  ])
+  if (!reg.ok || !prove.ok) throw new Error('Failed to fetch verifier keys for fingerprint')
+  const combined = new Uint8Array([
+    ...new Uint8Array(await crypto.subtle.digest('SHA-256', await reg.arrayBuffer())),
+    ...new Uint8Array(await crypto.subtle.digest('SHA-256', await prove.arrayBuffer())),
+  ])
+  return toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', combined)))
 }
 
 function getStoredContractFingerprint(): string | null {
@@ -476,6 +482,12 @@ export async function generateProof(
       contractAddress: contractAddressResult,
     }
   } catch (e) {
+    const details = e instanceof Error ? `[${e.name}] ${e.message}` : String(e)
+    console.error('generateProof failed:', details, e instanceof Error ? e.stack : '')
+    // Also log the raw error object for full introspection
+    if (typeof e === 'object' && e !== null) {
+      try { console.error('Raw error keys:', Object.keys(e).join(', ')) } catch {}
+    }
     throw new Error(getErrorMessage(e, currentStep))
   }
 }
