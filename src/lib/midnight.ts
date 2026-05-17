@@ -6,7 +6,7 @@ import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
 import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
 import { CompiledContract } from '@midnight-ntwrk/compact-js'
 import { createUnprovenDeployTx, createUnprovenCallTx, submitTxAsync, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts'
-import { Contract as IdentityContract } from '../../contracts/managed/identity/contract/index.js'
+import { Contract as IdentityContract, ledger } from '../../contracts/managed/identity/contract/index.js'
 
 export interface Proof {
   proofId: string
@@ -336,6 +336,15 @@ export function getErrorMessage(e: unknown, step?: string): string {
   return `${msg}${ctx}. Please try again.`
 }
 
+async function queryVerifyCount(
+  publicDataProvider: ReturnType<typeof createPatchedPublicDataProvider>,
+  contractAddress: string,
+): Promise<bigint> {
+  const state = await publicDataProvider.queryContractState(contractAddress)
+  if (!state) return 0n
+  try { return ledger(state).verifyCount } catch { return 0n }
+}
+
 export async function generateProof(
   walletAddress: string,
   onStatus?: StatusCallback,
@@ -473,9 +482,10 @@ export async function generateProof(
       })
 
       report('verifying', 'Waiting for network confirmation...', 92)
+      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       for (let i = 0; i < 15; i++) {
-        const confirmed = await providers.publicDataProvider.queryContractState(contractAddressResult)
-        if (confirmed) {
+        const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
+        if (count > preCount) {
           report('verifying', 'Proof confirmed on-chain', 98)
           break
         }
@@ -509,9 +519,10 @@ export async function generateProof(
       })
 
       report('verifying', 'Waiting for network confirmation...', 88)
+      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       for (let i = 0; i < 15; i++) {
-        const confirmed = await providers.publicDataProvider.queryContractState(contractAddressResult)
-        if (confirmed) {
+        const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
+        if (count > preCount) {
           report('verifying', 'Proof confirmed on-chain', 95)
           break
         }
