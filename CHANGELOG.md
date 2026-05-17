@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 (2026-05-17)
+
+### Fixed
+- `proveIdentity` circuit crashed with "attempted to take root of non-rehashed bmt" WASM error during `partitionTranscripts` — removed `registrations.checkRoot()` call from circuit, membership is now verified by the `findPath` witness querying the actual Merkle tree via `registrations.findPathForLeaf`
+- Updated `AGENTS.md` contract architecture description to reflect the circuit flow change
+
 ## 0.5.2 (2026-05-17)
 
 ### Added

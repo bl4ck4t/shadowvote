@@ -250,8 +250,8 @@ function storeContractAddress(address: string): void {
 }
 
 async function getContractFingerprint(): Promise<string> {
-  const res = await fetch('/contract/identity/zkir/register.bzkir')
-  if (!res.ok) throw new Error('Failed to fetch ZKIR for fingerprint')
+  const res = await fetch('/contract/identity/keys/register.verifier')
+  if (!res.ok) throw new Error('Failed to fetch verifier key for fingerprint')
   const hash = await crypto.subtle.digest('SHA-256', await res.arrayBuffer())
   return toHex(new Uint8Array(hash))
 }

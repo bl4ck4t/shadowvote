@@ -1,42 +1,42 @@
 import * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
 __compactRuntime.checkRuntimeVersion('0.16.0');
 
-const _descriptor_0 = new __compactRuntime.CompactTypeBytes(32);
+const _descriptor_0 = new __compactRuntime.CompactTypeUnsignedInteger(65535n, 2);
 
-const _descriptor_1 = __compactRuntime.CompactTypeField;
+const _descriptor_1 = new __compactRuntime.CompactTypeBytes(32);
+
+const _descriptor_2 = __compactRuntime.CompactTypeField;
 
 class _MerkleTreeDigest_0 {
   alignment() {
-    return _descriptor_1.alignment();
+    return _descriptor_2.alignment();
   }
   fromValue(value_0) {
     return {
-      field: _descriptor_1.fromValue(value_0)
+      field: _descriptor_2.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_1.toValue(value_0.field);
+    return _descriptor_2.toValue(value_0.field);
   }
 }
 
-const _descriptor_2 = new _MerkleTreeDigest_0();
+const _descriptor_3 = new _MerkleTreeDigest_0();
 
-const _descriptor_3 = __compactRuntime.CompactTypeBoolean;
-
-const _descriptor_4 = new __compactRuntime.CompactTypeUnsignedInteger(65535n, 2);
+const _descriptor_4 = __compactRuntime.CompactTypeBoolean;
 
 class _MerkleTreePathEntry_0 {
   alignment() {
-    return _descriptor_2.alignment().concat(_descriptor_3.alignment());
+    return _descriptor_3.alignment().concat(_descriptor_4.alignment());
   }
   fromValue(value_0) {
     return {
-      sibling: _descriptor_2.fromValue(value_0),
-      goes_left: _descriptor_3.fromValue(value_0)
+      sibling: _descriptor_3.fromValue(value_0),
+      goes_left: _descriptor_4.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_2.toValue(value_0.sibling).concat(_descriptor_3.toValue(value_0.goes_left));
+    return _descriptor_3.toValue(value_0.sibling).concat(_descriptor_4.toValue(value_0.goes_left));
   }
 }
 
@@ -46,16 +46,16 @@ const _descriptor_6 = new __compactRuntime.CompactTypeVector(16, _descriptor_5);
 
 class _MerkleTreePath_0 {
   alignment() {
-    return _descriptor_0.alignment().concat(_descriptor_6.alignment());
+    return _descriptor_1.alignment().concat(_descriptor_6.alignment());
   }
   fromValue(value_0) {
     return {
-      leaf: _descriptor_0.fromValue(value_0),
+      leaf: _descriptor_1.fromValue(value_0),
       path: _descriptor_6.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_0.toValue(value_0.leaf).concat(_descriptor_6.toValue(value_0.path));
+    return _descriptor_1.toValue(value_0.leaf).concat(_descriptor_6.toValue(value_0.path));
   }
 }
 
@@ -65,40 +65,40 @@ const _descriptor_8 = new __compactRuntime.CompactTypeBytes(6);
 
 class _LeafPreimage_0 {
   alignment() {
-    return _descriptor_8.alignment().concat(_descriptor_0.alignment());
+    return _descriptor_8.alignment().concat(_descriptor_1.alignment());
   }
   fromValue(value_0) {
     return {
       domain_sep: _descriptor_8.fromValue(value_0),
-      data: _descriptor_0.fromValue(value_0)
+      data: _descriptor_1.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_8.toValue(value_0.domain_sep).concat(_descriptor_0.toValue(value_0.data));
+    return _descriptor_8.toValue(value_0.domain_sep).concat(_descriptor_1.toValue(value_0.data));
   }
 }
 
 const _descriptor_9 = new _LeafPreimage_0();
 
-const _descriptor_10 = new __compactRuntime.CompactTypeVector(2, _descriptor_1);
+const _descriptor_10 = new __compactRuntime.CompactTypeVector(2, _descriptor_2);
 
-const _descriptor_11 = new __compactRuntime.CompactTypeVector(2, _descriptor_0);
+const _descriptor_11 = new __compactRuntime.CompactTypeVector(2, _descriptor_1);
 
 const _descriptor_12 = new __compactRuntime.CompactTypeUnsignedInteger(18446744073709551615n, 8);
 
 class _Either_0 {
   alignment() {
-    return _descriptor_3.alignment().concat(_descriptor_0.alignment().concat(_descriptor_0.alignment()));
+    return _descriptor_4.alignment().concat(_descriptor_1.alignment().concat(_descriptor_1.alignment()));
   }
   fromValue(value_0) {
     return {
-      is_left: _descriptor_3.fromValue(value_0),
-      left: _descriptor_0.fromValue(value_0),
-      right: _descriptor_0.fromValue(value_0)
+      is_left: _descriptor_4.fromValue(value_0),
+      left: _descriptor_1.fromValue(value_0),
+      right: _descriptor_1.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_3.toValue(value_0.is_left).concat(_descriptor_0.toValue(value_0.left).concat(_descriptor_0.toValue(value_0.right)));
+    return _descriptor_4.toValue(value_0.is_left).concat(_descriptor_1.toValue(value_0.left).concat(_descriptor_1.toValue(value_0.right)));
   }
 }
 
@@ -108,15 +108,15 @@ const _descriptor_14 = new __compactRuntime.CompactTypeUnsignedInteger(340282366
 
 class _ContractAddress_0 {
   alignment() {
-    return _descriptor_0.alignment();
+    return _descriptor_1.alignment();
   }
   fromValue(value_0) {
     return {
-      bytes: _descriptor_0.fromValue(value_0)
+      bytes: _descriptor_1.fromValue(value_0)
     }
   }
   toValue(value_0) {
-    return _descriptor_0.toValue(value_0.bytes);
+    return _descriptor_1.toValue(value_0.bytes);
   }
 }
 
@@ -264,8 +264,8 @@ export class Contract {
                                                          value: { value: _descriptor_16.toValue(1n),
                                                                   alignment: _descriptor_16.alignment() } }] } },
                                        { addi: { immediate: parseInt(__compactRuntime.valueToBigInt(
-                                                              { value: _descriptor_4.toValue(tmp_0),
-                                                                alignment: _descriptor_4.alignment() }
+                                                              { value: _descriptor_0.toValue(tmp_0),
+                                                                alignment: _descriptor_0.alignment() }
                                                                 .value
                                                             )) } },
                                        { ins: { cached: true, n: 1 } }]);
@@ -321,8 +321,8 @@ export class Contract {
                                  result_0)
     }
     partialProofData.privateTranscriptOutputs.push({
-      value: _descriptor_0.toValue(result_0),
-      alignment: _descriptor_0.alignment()
+      value: _descriptor_1.toValue(result_0),
+      alignment: _descriptor_1.alignment()
     });
     return result_0;
   }
@@ -357,8 +357,8 @@ export class Contract {
                                                                   alignment: _descriptor_16.alignment() } }] } },
                                        { push: { storage: true,
                                                  value: __compactRuntime.StateValue.newCell(__compactRuntime.leafHash(
-                                                                                              { value: _descriptor_0.toValue(commitment_0),
-                                                                                                alignment: _descriptor_0.alignment() }
+                                                                                              { value: _descriptor_1.toValue(commitment_0),
+                                                                                                alignment: _descriptor_1.alignment() }
                                                                                             )).encode() } },
                                        { ins: { cached: false, n: 1 } },
                                        { ins: { cached: true, n: 1 } },
@@ -381,8 +381,8 @@ export class Contract {
                                                          value: { value: _descriptor_16.toValue(1n),
                                                                   alignment: _descriptor_16.alignment() } }] } },
                                        { addi: { immediate: parseInt(__compactRuntime.valueToBigInt(
-                                                              { value: _descriptor_4.toValue(tmp_0),
-                                                                alignment: _descriptor_4.alignment() }
+                                                              { value: _descriptor_0.toValue(tmp_0),
+                                                                alignment: _descriptor_0.alignment() }
                                                                 .value
                                                             )) } },
                                        { ins: { cached: true, n: 1 } }]);
@@ -410,31 +410,7 @@ export class Contract {
     const secret_0 = this._callerSecret_0(context, partialProofData);
     const commitment_0 = this._identityCommitment_0(secret_0);
     const path_0 = this._findPath_0(context, partialProofData, commitment_0);
-    const computedRoot_0 = this._merkleTreePathRoot_0(path_0);
-    __compactRuntime.assert(_descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
-                                                                                      partialProofData,
-                                                                                      [
-                                                                                       { dup: { n: 0 } },
-                                                                                       { idx: { cached: false,
-                                                                                                pushPath: false,
-                                                                                                path: [
-                                                                                                       { tag: 'value',
-                                                                                                         value: { value: _descriptor_16.toValue(0n),
-                                                                                                                  alignment: _descriptor_16.alignment() } }] } },
-                                                                                       { idx: { cached: false,
-                                                                                                pushPath: false,
-                                                                                                path: [
-                                                                                                       { tag: 'value',
-                                                                                                         value: { value: _descriptor_16.toValue(0n),
-                                                                                                                  alignment: _descriptor_16.alignment() } }] } },
-                                                                                       'root',
-                                                                                       { push: { storage: false,
-                                                                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(computedRoot_0),
-                                                                                                                                              alignment: _descriptor_2.alignment() }).encode() } },
-                                                                                       'eq',
-                                                                                       { popeq: { cached: true,
-                                                                                                  result: undefined } }]).value),
-                            'identity not registered');
+    this._merkleTreePathRoot_0(path_0);
     const tmp_0 = 1n;
     __compactRuntime.queryLedgerState(context,
                                       partialProofData,
@@ -446,8 +422,8 @@ export class Contract {
                                                          value: { value: _descriptor_16.toValue(1n),
                                                                   alignment: _descriptor_16.alignment() } }] } },
                                        { addi: { immediate: parseInt(__compactRuntime.valueToBigInt(
-                                                              { value: _descriptor_4.toValue(tmp_0),
-                                                                alignment: _descriptor_4.alignment() }
+                                                              { value: _descriptor_0.toValue(tmp_0),
+                                                                alignment: _descriptor_0.alignment() }
                                                                 .value
                                                             )) } },
                                        { ins: { cached: true, n: 1 } }]);
@@ -477,7 +453,7 @@ export function ledger(stateOrChargedState) {
         if (args_0.length !== 0) {
           throw new __compactRuntime.CompactError(`isFull: expected 0 arguments, received ${args_0.length}`);
         }
-        return _descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_4.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -513,7 +489,7 @@ export function ledger(stateOrChargedState) {
                                      'struct MerkleTreeDigest<field: Field>',
                                      rt_0)
         }
-        return _descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+        return _descriptor_4.fromValue(__compactRuntime.queryLedgerState(context,
                                                                          partialProofData,
                                                                          [
                                                                           { dup: { n: 0 } },
@@ -531,8 +507,8 @@ export function ledger(stateOrChargedState) {
                                                                                                      alignment: _descriptor_16.alignment() } }] } },
                                                                           'root',
                                                                           { push: { storage: false,
-                                                                                    value: __compactRuntime.StateValue.newCell({ value: _descriptor_2.toValue(rt_0),
-                                                                                                                                 alignment: _descriptor_2.alignment() }).encode() } },
+                                                                                    value: __compactRuntime.StateValue.newCell({ value: _descriptor_3.toValue(rt_0),
+                                                                                                                                 alignment: _descriptor_3.alignment() }).encode() } },
                                                                           'eq',
                                                                           { popeq: { cached: true,
                                                                                      result: undefined } }]).value);
@@ -572,7 +548,7 @@ export function ledger(stateOrChargedState) {
                                      leaf_0)
         }
         const self_0 = state.asArray()[0];
-        return ((result) => result             ? new __compactRuntime.CompactTypeMerkleTreePath(16, _descriptor_0).fromValue(result)             : undefined)(  self_0.asArray()[0].asBoundedMerkleTree().rehash().pathForLeaf(    index_0,    {      value: _descriptor_0.toValue(leaf_0),      alignment: _descriptor_0.alignment()    }  )?.value);
+        return ((result) => result             ? new __compactRuntime.CompactTypeMerkleTreePath(16, _descriptor_1).fromValue(result)             : undefined)(  self_0.asArray()[0].asBoundedMerkleTree().rehash().pathForLeaf(    index_0,    {      value: _descriptor_1.toValue(leaf_0),      alignment: _descriptor_1.alignment()    }  )?.value);
       },
       findPathForLeaf(...args_0) {
         if (args_0.length !== 1) {
@@ -587,7 +563,7 @@ export function ledger(stateOrChargedState) {
                                      leaf_0)
         }
         const self_0 = state.asArray()[0];
-        return ((result) => result             ? new __compactRuntime.CompactTypeMerkleTreePath(16, _descriptor_0).fromValue(result)             : undefined)(  self_0.asArray()[0].asBoundedMerkleTree().rehash().findPathForLeaf(    {      value: _descriptor_0.toValue(leaf_0),      alignment: _descriptor_0.alignment()    }  )?.value);
+        return ((result) => result             ? new __compactRuntime.CompactTypeMerkleTreePath(16, _descriptor_1).fromValue(result)             : undefined)(  self_0.asArray()[0].asBoundedMerkleTree().rehash().findPathForLeaf(    {      value: _descriptor_1.toValue(leaf_0),      alignment: _descriptor_1.alignment()    }  )?.value);
       }
     },
     get verifyCount() {
