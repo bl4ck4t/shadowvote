@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { createConnectedSession, getErrorMessage } from '@/lib/midnight'
+import { createConnectedSession, getErrorMessage, checkProofStatus } from '@/lib/midnight'
 import type { ConnectedSession } from '@/lib/midnight'
 
 export type WalletStatus = 'checking' | 'detected' | 'not-found'
@@ -16,6 +16,7 @@ type WalletContextType = {
   connect: (network?: string) => Promise<ConnectedSession | undefined>
   disconnect: () => void
   clearError: () => void
+  checkProofStatus: (txId: string) => Promise<boolean>
 }
 
 const WalletContext = createContext<WalletContextType | null>(null)
@@ -90,10 +91,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => setConnectError(null), [])
 
+  const checkStatus = useCallback(async (txId: string): Promise<boolean> => {
+    if (!session) return false
+    return checkProofStatus(txId, session.config.indexerUri)
+  }, [session])
+
   return (
     <WalletContext.Provider value={{
       address, isConnected, isConnecting, connectError, walletStatus,
       session, connect, disconnect, clearError,
+      checkProofStatus: checkStatus,
     }}>
       {children}
     </WalletContext.Provider>

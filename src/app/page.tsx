@@ -69,7 +69,7 @@ export default function Home() {
             {/* Proof Section */}
             <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 space-y-6">
               <ProofPanel onProofComplete={setProof} />
-              <StatusCard proof={proof} />
+              <StatusCard proof={proof} onProofUpdated={setProof} />
             </div>
 
             {/* Spacer */}

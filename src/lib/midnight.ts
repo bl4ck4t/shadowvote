@@ -1,12 +1,12 @@
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id'
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider'
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider'
-import { ContractState, ChargedState, persistentHash, CompactTypeBytes, CompactTypeVector, sampleSigningKey } from '@midnight-ntwrk/compact-runtime'
+import { ContractState, persistentHash, CompactTypeBytes, CompactTypeVector, sampleSigningKey } from '@midnight-ntwrk/compact-runtime'
 import { LedgerParameters, ZswapChainState } from '@midnight-ntwrk/ledger-v8'
 import type { WalletProvider, MidnightProvider } from '@midnight-ntwrk/midnight-js-types'
 import { CompiledContract } from '@midnight-ntwrk/compact-js'
 import { createUnprovenDeployTx, createUnprovenCallTx, submitTxAsync, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts'
-import { Contract as IdentityContract, ledger } from '../../contracts/managed/identity/contract/index.js'
+import { Contract as IdentityContract } from '../../contracts/managed/identity/contract/index.js'
 
 export interface Proof {
   proofId: string
@@ -15,6 +15,7 @@ export interface Proof {
   commitmentHash: string
   txId?: string
   contractAddress?: string
+  pending?: boolean
 }
 
 // Compact type descriptor: Vector<2, Bytes<32>> — used for identity commitment hash
@@ -338,18 +339,28 @@ export function getErrorMessage(e: unknown, step?: string): string {
   return `${msg}${ctx}. Please try again.`
 }
 
-async function queryVerifyCount(
-  publicDataProvider: ReturnType<typeof createPatchedPublicDataProvider>,
-  contractAddress: string,
-): Promise<bigint> {
-  const state = await publicDataProvider.queryContractState(contractAddress)
-  if (!state) return 0n
-  try {
-    const charged = new ChargedState(state.state)
-    return ledger(charged).verifyCount
-  } catch {
-    return 0n
-  }
+async function queryTransactionStatus(indexerUri: string, txId: string): Promise<boolean> {
+  const hash = txId.replace(/^0x/, '').toLowerCase()
+  const res = await fetch(indexerUri, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query: `
+        query TX_BY_HASH($hash: HexEncoded!) {
+          transactions(offset: { hash: $hash }) { hash }
+        }
+      `,
+      variables: { hash },
+    }),
+  })
+  if (!res.ok) throw new Error(`Indexer HTTP error: ${res.status}`)
+  const payload = await res.json()
+  if (payload.errors?.length) throw new Error(payload.errors.map((e: any) => e.message).join('; '))
+  return Array.isArray(payload.data?.transactions) && payload.data.transactions.length > 0
+}
+
+export async function checkProofStatus(txId: string, indexerUri: string): Promise<boolean> {
+  return queryTransactionStatus(indexerUri, txId)
 }
 
 export async function generateProof(
@@ -362,6 +373,7 @@ export async function generateProof(
   }
 
   let currentStep: string | undefined
+  let proofTxId: string | undefined
 
   try {
     if (!session) {
@@ -482,20 +494,32 @@ export async function generateProof(
         }
       }
 
-      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       report('proving', 'Confirm the prove transaction in your 1AM wallet...', 88)
-      await submitTxAsync(providers as any, {
+      proofTxId = await submitTxAsync(providers as any, {
         unprovenTx: proveTxData.private.unprovenTx,
         circuitId: 'proveIdentity' as any,
       })
 
       report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 92)
+      let confirmed = false
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 2_000))
-        const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
-        if (count > preCount) {
+        if (proofTxId && await queryTransactionStatus(session.config.indexerUri, proofTxId)) {
           report('verifying', 'Proof confirmed on-chain', 98)
+          confirmed = true
           break
+        }
+      }
+      if (!confirmed) {
+        report('verifying', 'Proof submitted, awaiting on-chain confirmation. Check back later.', 95)
+        return {
+          proofId: commitmentHash.slice(0, 18),
+          timestamp: Date.now(),
+          verified: false,
+          pending: true,
+          txId: proofTxId,
+          commitmentHash,
+          contractAddress: contractAddressResult,
         }
       }
     } else {
@@ -518,20 +542,32 @@ export async function generateProof(
         contractAddress: contractAddressResult,
         circuitId: 'proveIdentity' as any,
       })
-      const preCount = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
       report('generating', 'Transaction submitted, waiting for indexer...', 80)
-      await submitTxAsync(providers as any, {
+      proofTxId = await submitTxAsync(providers as any, {
         unprovenTx: proveTxData.private.unprovenTx,
         circuitId: 'proveIdentity' as any,
       })
 
       report('verifying', 'Proof submitted — awaiting on-chain confirmation...', 88)
+      let confirmed = false
       for (let i = 0; i < 10; i++) {
         await new Promise(r => setTimeout(r, 2_000))
-        const count = await queryVerifyCount(providers.publicDataProvider, contractAddressResult)
-        if (count > preCount) {
+        if (proofTxId && await queryTransactionStatus(session.config.indexerUri, proofTxId)) {
           report('verifying', 'Proof confirmed on-chain', 95)
+          confirmed = true
           break
+        }
+      }
+      if (!confirmed) {
+        report('verifying', 'Proof submitted, awaiting on-chain confirmation. Check back later.', 93)
+        return {
+          proofId: commitmentHash.slice(0, 18),
+          timestamp: Date.now(),
+          verified: false,
+          pending: true,
+          txId: proofTxId,
+          commitmentHash,
+          contractAddress: contractAddressResult,
         }
       }
     }
@@ -541,6 +577,7 @@ export async function generateProof(
       proofId: commitmentHash.slice(0, 18),
       timestamp: Date.now(),
       verified: true,
+      txId: proofTxId,
       commitmentHash,
       contractAddress: contractAddressResult,
     }

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.6 (2026-05-17)
+
+### Added
+- `queryTransactionStatus`: queries indexer by normalized tx hash (strips `0x`, lowercases) — replaces global `verifyCount` counter
+- `checkProofStatus` export from `midnight.ts` for tx-specific confirmation checking
+- `checkProofStatus` on WalletContext — wraps session's `config.indexerUri` for component use
+- Auto-poll in StatusCard: when proof is `pending` with a `txId`, polls every 5s and auto-transitions to confirmed
+
+### Changed
+- `submitTxAsync` return value (tx hash) is now captured and stored in `Proof.txId`
+- Confirmation polling uses `queryTransactionStatus` by tx hash instead of global `verifyCount` — eliminates false positives from other users' transactions
+- `Proof` interface gains `pending?: boolean` field
+- Removed `ChargedState` and `ledger` imports (no longer needed without `queryVerifyCount`)
+- Removed `queryVerifyCount` function
+
 ## 0.5.5 (2026-05-17)
 
 ### Fixed
